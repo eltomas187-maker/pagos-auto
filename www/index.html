@@ -26,20 +26,23 @@ button{font:inherit;cursor:pointer;border:0;border-radius:14px;padding:14px;font
 .g{display:grid;grid-template-columns:1fr 1fr;gap:12px}.g .card{margin:0}
 .g b{font-size:20px;display:block;margin-top:4px}
 label{display:block;font-size:14px;color:var(--mu);margin:12px 0 4px}
-input,select{width:100%;font:inherit;padding:12px;border-radius:12px;border:1px solid var(--bd);background:var(--in);color:var(--tx)}
+input,select,textarea{width:100%;font:inherit;padding:12px;border-radius:12px;border:1px solid var(--bd);background:var(--in);color:var(--tx)}
 .row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--bd);gap:8px}
 .row:last-child{border:0}.row.done{opacity:.45}
 .row small{display:block;color:var(--mu)}
 .nav{position:fixed;left:0;right:0;bottom:0;background:var(--cd);border-top:1px solid var(--bd);display:flex;justify-content:space-around;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
-.nav button{background:none;color:var(--mu);font-size:13px;padding:8px 12px}.nav .on{color:var(--ac)}
+.nav button{background:none;color:var(--mu);font-size:13px;padding:8px 7px}.nav .on{color:var(--ac)}
 .ok{color:var(--ok);font-weight:700}
 h2{margin:6px 2px 12px;font-size:22px}
 .mod{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}.box{background:var(--cd);border-radius:18px;padding:20px;width:100%;max-width:380px}.box p{margin:0 0 14px;font-size:17px}.toast{position:fixed;left:16px;right:16px;bottom:90px;background:#222;color:#fff;padding:12px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:60;text-align:center}.toast.on{opacity:1}
 </style></head><body><main id="app"></main><nav class="nav" id="nav"></nav>
 <script>
-const K="pagosMiAuto";let S=load(),tab="home",sim={amt:"",mode:"pago"},form={};
-function load(){try{const d=JSON.parse(localStorage.getItem(K));if(d&&d.mi===undefined){const n=d.total-d.paid;if(d.fixed)d.mi=solve(d.balance,d.pmt,n);else{d.mi=d.rate/1200;d.pmt=pmt(d.balance,d.mi,n)}}return d}catch(e){return null}}
-function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){note("No se pudo guardar. Prueba con una foto más pequeña.")}}
+const K="pagosMiAuto",K2="pagosMiAuto2";let DB=load(),S=DB.cars.find(c=>c.id===DB.cur)||null,tab="home",sim={amt:"",mode:"pago"},form={},prev=null;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function fixCar(d){if(d.mi===undefined){const n=d.total-d.paid;if(d.fixed)d.mi=solve(d.balance,d.pmt,n);else{d.mi=d.rate/1200;d.pmt=pmt(d.balance,d.mi,n)}}if(!d.id)d.id=uid();return d}
+function load(){try{let d=JSON.parse(localStorage.getItem(K2));if(!d||!d.cars){const o=JSON.parse(localStorage.getItem(K));d=o?{cur:null,cars:[o]}:{cur:null,cars:[]}}d.cars.forEach(fixCar);if(!d.cars.find(c=>c.id===d.cur))d.cur=d.cars[0]?d.cars[0].id:null;return d}catch(e){return{cur:null,cars:[]}}}
+function save(){try{localStorage.setItem(K2,JSON.stringify(DB))}catch(e){note("No se pudo guardar. Prueba con una foto más pequeña.")}if(DB.rem)setTimeout(schedRem,300)}
 function note(t){let e=document.getElementById("toast");if(!e){e=document.createElement("div");e.id="toast";document.body.appendChild(e)}e.textContent=t;e.className="toast on";clearTimeout(window.tt);window.tt=setTimeout(()=>{e.className="toast"},7000)}
 function ask(t,ok,label){const m=document.createElement("div");m.className="mod";m.innerHTML='<div class="box"><p></p><button class="p" id="mk"></button><button class="s" id="mc" style="width:100%;margin-top:8px">Cancelar</button></div>';m.querySelector("p").textContent=t;m.querySelector("#mk").textContent=label||"Confirmar";document.body.appendChild(m);m.querySelector("#mc").onclick=()=>m.remove();m.querySelector("#mk").onclick=()=>{m.remove();ok()}}
 const money=n=>n.toLocaleString("es-MX",{style:"currency",currency:"MXN"});
@@ -58,7 +61,7 @@ function simCalc(a){const nb=S.balance-a,i=S.mi,n=S.total-S.paid;let newp,m;if(s
 function photo(f,cb){if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const m=900,k=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*k;c.height=im.height*k;c.getContext("2d").drawImage(im,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.8))};im.src=r.result};r.readAsDataURL(f)}
 function setup(){const e=S||{};form.photo=form.photo||e.photo||"";
 return `<h2>${S?"Editar mi crédito":"Registrar mi auto"}</h2><div class="card">
-<label>Nombre del auto</label><input id="f_name" value="${e.name||""}" placeholder="Nissan Magnite 2025">
+<label>Nombre del auto</label><input id="f_name" value="${esc(e.name||"")}" placeholder="Nissan Magnite 2025">
 <label>Foto del auto</label><input type="file" accept="image/*" id="f_photo">${form.photo?`<img src="${form.photo}" style="width:100%;border-radius:12px;margin-top:8px" alt="Foto del auto">`:""}
 <label>Saldo restante ($)</label><input id="f_bal" type="number" inputmode="decimal" value="${e.balance?e.balance.toFixed(2):""}">
 <label>Interés anual (%)</label><input id="f_rate" type="number" inputmode="decimal" step="0.01" value="${e.rate||""}">
@@ -67,17 +70,33 @@ return `<h2>${S?"Editar mi crédito":"Registrar mi auto"}</h2><div class="card">
 <label>Fecha del próximo pago</label><input id="f_next" type="date" value="${e.next||""}">
 <label>Mensualidad real (opcional, déjala vacía para calcularla)</label><input id="f_pmt" type="number" inputmode="decimal" value="${e.fixed?e.pmt.toFixed(2):""}">
 <button class="p" onclick="saveSetup()">Guardar</button>
-${S?`<button class="lk" onclick="reset()">Borrar todo y empezar de nuevo</button>`:""}</div>`}
+${S?`<button class="lk" onclick="reset()">Eliminar este auto</button>`:DB.cars.length?`<button class="lk" onclick="cancelAdd()">Cancelar</button>`:""}</div>`}
 function saveSetup(){const v=id=>document.getElementById(id).value,bal=+v("f_bal"),rate=+v("f_rate"),total=+v("f_total"),paid=+v("f_paid"),next=v("f_next");
 if(!(bal>0)||!(total>0)||paid<0||paid>=total||!next||rate<0||v("f_rate")==="")return note("Completa saldo, interés, pagos y fecha. Los pagos realizados deben ser menos que el total.");
 const n=total-paid,fx=+v("f_pmt"),mi=fx>0?solve(bal,fx,n):rate/1200,p=fx>0?fx:pmt(bal,mi,n);if(fx>0&&fx*n<=bal)return note("Con esa mensualidad ("+money(fx)+" × "+n+" = "+money(fx*n)+") no se alcanza a pagar el saldo de "+money(bal)+". Revisa el saldo, el plazo o la mensualidad.");
-S={...(S||{}),name:v("f_name")||"Mi auto",photo:form.photo||"",balance:bal,rate,total,paid,next,pmt:p,mi,fixed:fx>0};form={};save();tab="home";render()}
-function reset(){ask("Se borrarán todos tus datos. ¿Seguro?",()=>{S=null;form={};sim.amt="";try{localStorage.removeItem(K)}catch(e){}tab="edit";render()},"Sí, borrar todo")}
+const c={...(S||{}),id:(S&&S.id)||uid(),name:v("f_name")||"Mi auto",photo:form.photo||"",balance:bal,rate,total,paid,next,pmt:p,mi,fixed:fx>0},k=DB.cars.findIndex(x=>x.id===c.id);if(k>=0)DB.cars[k]=c;else DB.cars.push(c);DB.cur=c.id;S=c;prev=null;form={};save();tab="home";render()}
+function reset(){ask("Se eliminará "+S.name+" con todo su historial. ¿Seguro?",()=>{DB.cars=DB.cars.filter(c=>c.id!==S.id);S=DB.cars[0]||null;DB.cur=S?S.id:null;form={};sim.amt="";save();tab=S?"home":"edit";render()},"Sí, eliminar")}
+function addCar(){prev=S;S=null;form={};tab="edit";render()}
+function pick(id){DB.cur=id;S=DB.cars.find(c=>c.id===id);save();render()}
+function cancelAdd(){S=prev;prev=null;tab="home";render()}
+function doBk(){const t=JSON.stringify(DB),e=document.getElementById("bk");e.value=t;e.select();try{document.execCommand("copy")}catch(x){}try{navigator.clipboard&&navigator.clipboard.writeText(t)}catch(x){}note("Respaldo listo y copiado. Si no se copió, selecciona el texto y cópialo.")}
+function doRs(){let d;try{d=JSON.parse(document.getElementById("bk").value)}catch(x){return note("El texto no es un respaldo válido.")}
+if(!d||!Array.isArray(d.cars)||!d.cars.every(c=>c&&c.balance>=0&&c.total>0&&c.pmt>0&&c.next&&c.rate>=0))return note("El texto no es un respaldo válido.");
+ask("Se reemplazarán los datos actuales por el respaldo ("+d.cars.length+" auto(s)). ¿Continuar?",()=>{d.cars.forEach(fixCar);DB={cur:d.cars.find(c=>c.id===d.cur)?d.cur:(d.cars[0]?d.cars[0].id:null),cars:d.cars,rem:!!d.rem};S=DB.cars.find(c=>c.id===DB.cur)||null;save();tab=S?"home":"edit";render()},"Restaurar")}
+const LN=()=>window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.LocalNotifications;
+async function clearRem(L){const q=await L.getPending();if(q.notifications.length)await L.cancel({notifications:q.notifications.map(n=>({id:n.id}))})}
+async function schedRem(){const L=LN();if(!L)return false;try{let p=await L.checkPermissions();if(p.display!=="granted"){p=await L.requestPermissions();if(p.display!=="granted")return "perm"}await clearRem(L);const list=[],now=Date.now();
+DB.cars.forEach((c,ci)=>{sched(c.balance,c.pmt,c.mi,c.next,c.paid,c.total-c.paid).slice(0,12).forEach((r,k)=>{[[3,"Tu pago de "+c.name+" es en 3 días: "],[0,"Hoy toca pagar "+c.name+": "]].forEach((a,j)=>{const at=new Date(r.date.getFullYear(),r.date.getMonth(),r.date.getDate()-a[0],9,0,0);if(at.getTime()>now)list.push({id:ci*1000+k*2+j+1,title:"Pago de mi auto",body:a[1]+money(r.pay),schedule:{at}})})})});
+if(list.length)await L.schedule({notifications:list});return true}catch(e){return false}}
+async function toggleRem(){if(DB.rem){DB.rem=false;save();try{const L=LN();if(L)await clearRem(L)}catch(e){}note("Recordatorios desactivados.");return render()}
+if(!LN())return note("Los recordatorios funcionan en la app instalada (APK), no en el navegador.");const r=await schedRem();if(r===true){DB.rem=true;save();note("Recordatorios activados.")}else note(r==="perm"?"Permite las notificaciones de esta app en los ajustes de Android.":"No se pudieron activar los recordatorios.");render()}
+function more(){return `<h2>Más</h2><div class="card"><b>Recordatorios de pago</b><p class="mu" style="margin:6px 0 0">Aviso 3 días antes y el mismo día de cada pago, de todos tus autos. Funciona en la app instalada (APK).</p><button class="${DB.rem?"s":"p"}" style="width:100%;margin-top:12px" onclick="toggleRem()">${DB.rem?"Desactivar recordatorios":"Activar recordatorios"}</button></div>
+<div class="card"><b>Respaldo de tus datos</b><p class="mu" style="margin:6px 0 0">Toca Copiar respaldo y pégalo en tus notas o envíatelo. Para restaurar, pega el texto aquí y toca Restaurar.</p><textarea id="bk" rows="4" style="margin:12px 0" placeholder="Aquí aparece o pegas el respaldo"></textarea><button class="p" style="margin:0" onclick="doBk()">Copiar respaldo</button><button class="s" style="width:100%;margin-top:8px" onclick="doRs()">Restaurar desde el texto</button></div>`}
 function home(){const rows=sched(S.balance,S.pmt,S.mi,S.next,S.paid,S.total-S.paid),nx=rows[0],left=rows.length,pc=Math.round(S.paid/(S.paid+left)*100),
 days=nx?Math.ceil((new Date(S.next+"T00:00")-new Date().setHours(0,0,0,0))/864e5):0,ti=rows.reduce((a,r)=>a+r.int,0),last=rows[rows.length-1];
-const ap=(S.hist||[]).filter(h=>h.kind==="aporte");
-if(!nx)return `<div class="card"><h2>¡Crédito liquidado!</h2><p class="mu">Ya no tienes pagos pendientes.</p></div>`;
-return `${S.fixed&&S.mi<=0&&S.rate>0?'<div class="card" style="border-color:var(--ac)"><b>Revisa tus datos</b><p class="mu" style="margin:6px 0 0">Tu mensualidad por los pagos que faltan no alcanza a cubrir el saldo, así que los números no cuadran. Corrígelo en Ajustes.</p></div>':""}<div class="hero" style="${S.photo?`background-image:url(${S.photo})`:""}"><div class="t"><b>${S.name}</b><span class="pill">Pago ${nx.n} de ${S.paid+left}</span></div></div>
+const ap=(S.hist||[]).filter(h=>h.kind==="aporte"),hd=`<div style="display:flex;gap:8px;margin-bottom:12px"><select onchange="pick(this.value)" style="flex:1">${DB.cars.map(c=>`<option value="${c.id}" ${c.id===S.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select><button class="s" onclick="addCar()">+ Auto</button></div>`;
+if(!nx)return hd+`<div class="card"><h2>¡Crédito liquidado!</h2><p class="mu">Ya no tienes pagos pendientes.</p></div>`;
+return hd+`${S.fixed&&S.mi<=0&&S.rate>0?'<div class="card" style="border-color:var(--ac)"><b>Revisa tus datos</b><p class="mu" style="margin:6px 0 0">Tu mensualidad por los pagos que faltan no alcanza a cubrir el saldo, así que los números no cuadran. Corrígelo en Ajustes.</p></div>':""}<div class="hero" style="${S.photo?`background-image:url(${S.photo})`:""}"><div class="t"><b>${esc(S.name)}</b><span class="pill">Pago ${nx.n} de ${S.paid+left}</span></div></div>
 <div class="card next"><div class="mu">Próximo pago</div><div class="big">${money(nx.pay)}</div><b>${dstr(nx.date)}</b><br><span class="pill">${days<0?"Vencido hace "+(-days)+" días":days===0?"Es hoy":"Faltan "+days+" días"}</span>
 <button class="p" onclick="pay()">Ya pagué este mes</button><button class="lk" onclick="undo()">Deshacer el último movimiento</button></div>
 <div class="card"><div class="mu">Avance del crédito</div><div class="bar"><i style="width:${pc}%"></i></div><div class="mu">${S.paid} de ${S.paid+left} pagos confirmados (${pc}%)</div></div>
@@ -101,11 +120,11 @@ return `<h2>Simular aporte a capital</h2><div class="card"><label>Monto del apor
 <label>¿Qué prefieres?</label><select onchange="sim.mode=this.value;render(true)"><option value="pago" ${sim.mode==="pago"?"selected":""}>Bajar mi mensualidad (mismo plazo)</option><option value="plazo" ${sim.mode==="plazo"?"selected":""}>Terminar antes (misma mensualidad)</option></select></div>${out}`}
 function render(keep){const A=document.getElementById("app"),N=document.getElementById("nav");
 if(!S&&tab!=="edit")tab="edit";
-A.innerHTML=tab==="edit"?setup():tab==="cal"?cal():tab==="sim"?simv():home();
+A.innerHTML=tab==="edit"?setup():tab==="cal"?cal():tab==="sim"?simv():tab==="more"?more():home();
 const fp=document.getElementById("f_photo");if(fp)fp.onchange=()=>photo(fp.files[0],d=>{const keepV={};["f_name","f_bal","f_rate","f_total","f_paid","f_next","f_pmt"].forEach(i=>keepV[i]=document.getElementById(i).value);form.photo=d;render();Object.keys(keepV).forEach(i=>document.getElementById(i).value=keepV[i])});
 if(keep){const e=document.getElementById("s_amt");if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}}
-const T=[["home","Inicio"],["cal","Calendario"],["sim","Simular"],["edit","Ajustes"]];
+const T=[["home","Inicio"],["cal","Calendario"],["sim","Simular"],["edit","Ajustes"],["more","Más"]];
 N.innerHTML=S?T.map(t=>`<button class="${tab===t[0]?"on":""}" onclick="tab='${t[0]}';form={};render()">${t[1]}</button>`).join(""):"";
 if(!keep)scrollTo(0,0)}
-render();
+render();if(DB.rem)schedRem();
 </script></body></html>

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Mi auto"><meta name="theme-color" content="#0e1117"><title>Pagos de mi auto</title>
+<style>
+:root{--bg:#f3f4f7;--cd:#fff;--tx:#151922;--mu:#6a7282;--ac:#ff4d6a;--ok:#1fb571;--bd:#e3e6ec;--in:#eef0f4;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1117;--cd:#181c25;--tx:#f1f3f7;--mu:#8e97a8;--bd:#262b37;--in:#232836}}
+:root[data-theme="dark"]{--bg:#0e1117;--cd:#181c25;--tx:#f1f3f7;--mu:#8e97a8;--bd:#262b37;--in:#232836}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:84px}
+main{max-width:520px;margin:0 auto;padding:14px}
+.card{background:var(--cd);border:1px solid var(--bd);border-radius:18px;padding:16px;margin-bottom:12px}
+.hero{height:200px;border-radius:20px;background:#dfe3ea center/cover;position:relative;margin-bottom:12px;overflow:hidden;display:flex;align-items:flex-end}
+.hero .t{width:100%;padding:36px 16px 14px;background:linear-gradient(transparent,rgba(0,0,0,.7));color:#fff}
+.hero b{font-size:20px;display:block}
+.pill{display:inline-block;background:var(--ac);color:#fff;border-radius:99px;padding:3px 12px;font-size:13px;font-weight:600;margin-top:4px}
+.mu{color:var(--mu);font-size:14px}
+.big{font-size:36px;font-weight:800;letter-spacing:-.5px;margin:2px 0}
+.next{border-left:5px solid var(--ac)}
+button{font:inherit;cursor:pointer;border:0;border-radius:14px;padding:14px;font-weight:700}
+.p{background:var(--ac);color:#fff;width:100%;margin-top:12px}
+.s{background:var(--in);color:var(--tx)}
+.lk{background:none;color:var(--mu);text-decoration:underline;padding:10px 0 0;font-weight:500}
+.bar{height:10px;border-radius:9px;background:var(--in);overflow:hidden;margin:10px 0 6px}
+.bar i{display:block;height:100%;background:var(--ok);border-radius:9px}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:12px}.g .card{margin:0}
+.g b{font-size:20px;display:block;margin-top:4px}
+label{display:block;font-size:14px;color:var(--mu);margin:12px 0 4px}
+input,select{width:100%;font:inherit;padding:12px;border-radius:12px;border:1px solid var(--bd);background:var(--in);color:var(--tx)}
+.row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--bd);gap:8px}
+.row:last-child{border:0}.row.done{opacity:.45}
+.row small{display:block;color:var(--mu)}
+.nav{position:fixed;left:0;right:0;bottom:0;background:var(--cd);border-top:1px solid var(--bd);display:flex;justify-content:space-around;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
+.nav button{background:none;color:var(--mu);font-size:13px;padding:8px 12px}.nav .on{color:var(--ac)}
+.ok{color:var(--ok);font-weight:700}
+h2{margin:6px 2px 12px;font-size:22px}
+.mod{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}.box{background:var(--cd);border-radius:18px;padding:20px;width:100%;max-width:380px}.box p{margin:0 0 14px;font-size:17px}.toast{position:fixed;left:16px;right:16px;bottom:90px;background:#222;color:#fff;padding:12px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:60;text-align:center}.toast.on{opacity:1}
+</style></head><body><main id="app"></main><nav class="nav" id="nav"></nav>
+<script>
+const K="pagosMiAuto";let S=load(),tab="home",sim={amt:"",mode:"pago"},form={};
+function load(){try{const d=JSON.parse(localStorage.getItem(K));if(d&&d.mi===undefined){const n=d.total-d.paid;if(d.fixed)d.mi=solve(d.balance,d.pmt,n);else{d.mi=d.rate/1200;d.pmt=pmt(d.balance,d.mi,n)}}return d}catch(e){return null}}
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){note("No se pudo guardar. Prueba con una foto más pequeña.")}}
+function note(t){let e=document.getElementById("toast");if(!e){e=document.createElement("div");e.id="toast";document.body.appendChild(e)}e.textContent=t;e.className="toast on";clearTimeout(window.tt);window.tt=setTimeout(()=>{e.className="toast"},7000)}
+function ask(t,ok,label){const m=document.createElement("div");m.className="mod";m.innerHTML='<div class="box"><p></p><button class="p" id="mk"></button><button class="s" id="mc" style="width:100%;margin-top:8px">Cancelar</button></div>';m.querySelector("p").textContent=t;m.querySelector("#mk").textContent=label||"Confirmar";document.body.appendChild(m);m.querySelector("#mc").onclick=()=>m.remove();m.querySelector("#mk").onclick=()=>{m.remove();ok()}}
+const money=n=>n.toLocaleString("es-MX",{style:"currency",currency:"MXN"});
+const dstr=d=>d.toLocaleDateString("es-MX",{day:"numeric",month:"short",year:"numeric"});
+const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function pmt(b,i,n){return i?b*i/(1-Math.pow(1+i,-n)):b/n}
+function addM(s,k){const[y,m,d]=s.split("-").map(Number);const t=new Date(y,m-1+k,1);const l=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();t.setDate(Math.min(d,l));return t}
+function solve(b,p,n){let lo=0,hi=1;if(p*n<=b)return 0;for(let j=0;j<80;j++){const m=(lo+hi)/2;pmt(b,m,n)<p?lo=m:hi=m}return (lo+hi)/2}
+function nper(b,i,p){if(i===0)return Math.ceil(b/p-1e-9);if(p<=b*i)return 600;return Math.min(600,Math.ceil(-Math.log(1-b*i/p)/Math.log(1+i)-1e-9))}
+function sched(bal,p,i,start,paid,n){const r=[];let b=bal;for(let k=0;k<n;k++){const int=b*i,last=k===n-1,pay=last?b+int:p,cap=pay-int;b-=cap;r.push({n:paid+k+1,date:addM(start,k),pay,int,cap,bal:last?0:Math.max(b,0)})}return r}
+function snap(kind,amt){S.hist=S.hist||[];S.hist.push({kind,amt,date:iso(new Date()),s:{paid:S.paid,balance:S.balance,next:S.next,pmt:S.pmt,total:S.total}});if(S.hist.length>60)S.hist.shift()}
+function pay(){const r=sched(S.balance,S.pmt,S.mi,S.next,S.paid,S.total-S.paid)[0];if(!r)return;ask("¿Confirmas que ya pagaste "+money(r.pay)+"?",()=>{snap("pago",r.pay);S.balance=r.bal;S.paid++;S.next=iso(addM(S.next,1));save();render()},"Sí, ya pagué")}
+function undo(){const h=S.hist&&S.hist[S.hist.length-1];if(!h)return note("No hay movimientos para deshacer.");ask("¿Deshacer el último movimiento ("+h.kind+")?",()=>{S.hist.pop();Object.assign(S,h.s);save();render()},"Deshacer")}
+function applyAp(){const a=+sim.amt;if(!(a>0)||a>=S.balance)return note("Escribe un monto válido, menor al saldo.");const c=simCalc(a);ask("¿Registrar aporte a capital de "+money(a)+"?",()=>{snap("aporte",a);S.balance-=a;S.pmt=c.newp;S.total=S.paid+c.rows.length;sim.amt="";save();tab="home";render()},"Registrar aporte")}
+function simCalc(a){const nb=S.balance-a,i=S.mi,n=S.total-S.paid;let newp,m;if(sim.mode==="pago"){newp=pmt(nb,i,n);m=n}else{newp=S.pmt;m=nper(nb,i,newp)}return{newp,rows:sched(nb,newp,i,S.next,S.paid,m),nb}}
+function photo(f,cb){if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const m=900,k=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*k;c.height=im.height*k;c.getContext("2d").drawImage(im,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.8))};im.src=r.result};r.readAsDataURL(f)}
+function setup(){const e=S||{};form.photo=form.photo||e.photo||"";
+return `<h2>${S?"Editar mi crédito":"Registrar mi auto"}</h2><div class="card">
+<label>Nombre del auto</label><input id="f_name" value="${e.name||""}" placeholder="Nissan Magnite 2025">
+<label>Foto del auto</label><input type="file" accept="image/*" id="f_photo">${form.photo?`<img src="${form.photo}" style="width:100%;border-radius:12px;margin-top:8px" alt="Foto del auto">`:""}
+<label>Saldo restante ($)</label><input id="f_bal" type="number" inputmode="decimal" value="${e.balance?e.balance.toFixed(2):""}">
+<label>Interés anual (%)</label><input id="f_rate" type="number" inputmode="decimal" step="0.01" value="${e.rate||""}">
+<label>Número total de pagos (meses)</label><input id="f_total" type="number" inputmode="numeric" value="${e.total||""}">
+<label>Pagos ya realizados</label><input id="f_paid" type="number" inputmode="numeric" value="${e.paid??0}">
+<label>Fecha del próximo pago</label><input id="f_next" type="date" value="${e.next||""}">
+<label>Mensualidad real (opcional, déjala vacía para calcularla)</label><input id="f_pmt" type="number" inputmode="decimal" value="${e.fixed?e.pmt.toFixed(2):""}">
+<button class="p" onclick="saveSetup()">Guardar</button>
+${S?`<button class="lk" onclick="reset()">Borrar todo y empezar de nuevo</button>`:""}</div>`}
+function saveSetup(){const v=id=>document.getElementById(id).value,bal=+v("f_bal"),rate=+v("f_rate"),total=+v("f_total"),paid=+v("f_paid"),next=v("f_next");
+if(!(bal>0)||!(total>0)||paid<0||paid>=total||!next||rate<0||v("f_rate")==="")return note("Completa saldo, interés, pagos y fecha. Los pagos realizados deben ser menos que el total.");
+const n=total-paid,fx=+v("f_pmt"),mi=fx>0?solve(bal,fx,n):rate/1200,p=fx>0?fx:pmt(bal,mi,n);if(fx>0&&fx*n<=bal)return note("Con esa mensualidad ("+money(fx)+" × "+n+" = "+money(fx*n)+") no se alcanza a pagar el saldo de "+money(bal)+". Revisa el saldo, el plazo o la mensualidad.");
+S={...(S||{}),name:v("f_name")||"Mi auto",photo:form.photo||"",balance:bal,rate,total,paid,next,pmt:p,mi,fixed:fx>0};form={};save();tab="home";render()}
+function reset(){ask("Se borrarán todos tus datos. ¿Seguro?",()=>{S=null;form={};sim.amt="";try{localStorage.removeItem(K)}catch(e){}tab="edit";render()},"Sí, borrar todo")}
+function home(){const rows=sched(S.balance,S.pmt,S.mi,S.next,S.paid,S.total-S.paid),nx=rows[0],left=rows.length,pc=Math.round(S.paid/(S.paid+left)*100),
+days=nx?Math.ceil((new Date(S.next+"T00:00")-new Date().setHours(0,0,0,0))/864e5):0,ti=rows.reduce((a,r)=>a+r.int,0),last=rows[rows.length-1];
+const ap=(S.hist||[]).filter(h=>h.kind==="aporte");
+if(!nx)return `<div class="card"><h2>¡Crédito liquidado!</h2><p class="mu">Ya no tienes pagos pendientes.</p></div>`;
+return `${S.fixed&&S.mi<=0&&S.rate>0?'<div class="card" style="border-color:var(--ac)"><b>Revisa tus datos</b><p class="mu" style="margin:6px 0 0">Tu mensualidad por los pagos que faltan no alcanza a cubrir el saldo, así que los números no cuadran. Corrígelo en Ajustes.</p></div>':""}<div class="hero" style="${S.photo?`background-image:url(${S.photo})`:""}"><div class="t"><b>${S.name}</b><span class="pill">Pago ${nx.n} de ${S.paid+left}</span></div></div>
+<div class="card next"><div class="mu">Próximo pago</div><div class="big">${money(nx.pay)}</div><b>${dstr(nx.date)}</b><br><span class="pill">${days<0?"Vencido hace "+(-days)+" días":days===0?"Es hoy":"Faltan "+days+" días"}</span>
+<button class="p" onclick="pay()">Ya pagué este mes</button><button class="lk" onclick="undo()">Deshacer el último movimiento</button></div>
+<div class="card"><div class="mu">Avance del crédito</div><div class="bar"><i style="width:${pc}%"></i></div><div class="mu">${S.paid} de ${S.paid+left} pagos confirmados (${pc}%)</div></div>
+<div class="g"><div class="card"><span class="mu">Saldo del auto</span><b>${money(S.balance)}</b></div><div class="card"><span class="mu">Pagos restantes</span><b>${left} de ${S.paid+left}</b></div>
+<div class="card"><span class="mu">Intereses por pagar</span><b>${money(ti)}</b></div><div class="card"><span class="mu">Último pago</span><b>${dstr(last.date)}</b></div></div>
+${ap.length?`<div class="card" style="margin-top:12px"><b>Aportes a capital</b>${ap.slice().reverse().map(h=>`<div class="row"><span>${h.date}</span><span class="ok">${money(h.amt)}</span></div>`).join("")}</div>`:""}`}
+function cal(){const rows=sched(S.balance,S.pmt,S.mi,S.next,S.paid,S.total-S.paid);
+return `<h2>Calendario de pagos</h2><div class="card">${rows.map((r,i)=>`<div class="row"><div><b>Pago ${r.n}</b><small>${dstr(r.date)}</small></div><div style="text-align:right"><b>${money(r.pay)}</b><small>Saldo: ${money(r.bal)}</small></div></div>`).join("")}</div><p class="mu">Los pagos ya confirmados salen de esta lista. Se calcula con interés sobre saldo; si tu banco suma IVA o seguros, captura tu mensualidad real en Ajustes.</p>`}
+function simv(){const a=+sim.amt,base=sched(S.balance,S.pmt,S.mi,S.next,S.paid,S.total-S.paid),bt=base.reduce((x,r)=>x+r.int,0);let out="";
+if(a>0&&a<S.balance){const c=simCalc(a),it=c.rows.reduce((x,r)=>x+r.int,0),fin=c.rows[c.rows.length-1];
+out=`<div class="card"><div class="mu">Con este aporte, tu pago queda en</div><div class="big">${money(c.newp)}</div>
+<div class="row"><span>Pago actual</span><b>${money(S.pmt)}</b></div>
+<div class="row"><span>Bajas por mes</span><b class="ok">${money(Math.max(S.pmt-c.newp,0))}</b></div>
+<div class="row"><span>Pagos restantes</span><b>${c.rows.length} <span class="mu">(antes ${base.length})</span></b></div>
+<div class="row"><span>Terminas de pagar</span><b>${dstr(fin.date)}</b></div>
+<div class="row"><span>Intereses que te ahorras</span><b class="ok">${money(bt-it)}</b></div>
+<div class="row"><span>Nuevo saldo</span><b>${money(c.nb)}</b></div>
+<button class="p" onclick="applyAp()">Registrar este aporte</button></div>`}
+else if(a>=S.balance&&a>0)out=`<p class="mu">El aporte no puede ser igual o mayor al saldo (${money(S.balance)}).</p>`;
+return `<h2>Simular aporte a capital</h2><div class="card"><label>Monto del aporte ($)</label><input id="s_amt" type="number" inputmode="decimal" value="${sim.amt}" oninput="sim.amt=this.value;clearTimeout(window.t);window.t=setTimeout(()=>render(true),500)" placeholder="10000">
+<label>¿Qué prefieres?</label><select onchange="sim.mode=this.value;render(true)"><option value="pago" ${sim.mode==="pago"?"selected":""}>Bajar mi mensualidad (mismo plazo)</option><option value="plazo" ${sim.mode==="plazo"?"selected":""}>Terminar antes (misma mensualidad)</option></select></div>${out}`}
+function render(keep){const A=document.getElementById("app"),N=document.getElementById("nav");
+if(!S&&tab!=="edit")tab="edit";
+A.innerHTML=tab==="edit"?setup():tab==="cal"?cal():tab==="sim"?simv():home();
+const fp=document.getElementById("f_photo");if(fp)fp.onchange=()=>photo(fp.files[0],d=>{const keepV={};["f_name","f_bal","f_rate","f_total","f_paid","f_next","f_pmt"].forEach(i=>keepV[i]=document.getElementById(i).value);form.photo=d;render();Object.keys(keepV).forEach(i=>document.getElementById(i).value=keepV[i])});
+if(keep){const e=document.getElementById("s_amt");if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}}
+const T=[["home","Inicio"],["cal","Calendario"],["sim","Simular"],["edit","Ajustes"]];
+N.innerHTML=S?T.map(t=>`<button class="${tab===t[0]?"on":""}" onclick="tab='${t[0]}';form={};render()">${t[1]}</button>`).join(""):"";
+if(!keep)scrollTo(0,0)}
+render();
+</script></body></html>

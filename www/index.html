@@ -48,6 +48,10 @@ function ask(t,ok,label){const m=document.createElement("div");m.className="mod"
 const money=n=>n.toLocaleString("es-MX",{style:"currency",currency:"MXN"});
 const dstr=d=>d.toLocaleDateString("es-MX",{day:"numeric",month:"short",year:"numeric"});
 const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const parseN=v=>{const n=parseFloat(String(v==null?"":v).replace(/,/g,""));return isNaN(n)?0:n};
+const fmtN=v=>{const t=String(v||"");if(!t)return"";const[a,b]=t.split(".");return Number(a||0).toLocaleString("en-US")+(b!==undefined?"."+b:"")};
+function fmtIn(el){const pos=el.selectionStart==null?el.value.length:el.selectionStart,old=el.value;let t=old.replace(/[^\d.]/g,"");const d=t.indexOf(".");if(d>=0)t=t.slice(0,d+1)+t.slice(d+1).replace(/\./g,"").slice(0,2);const[a,b]=t.split(".");const nv=a.replace(/^0+(?=\d)/,"").replace(/\B(?=(\d{3})+(?!\d))/g,",")+(b!==undefined?"."+b:"");const before=old.slice(0,pos).replace(/[^\d.]/g,"").length;el.value=nv;let c=0,np=0;while(np<nv.length&&c<before){if(/[\d.]/.test(nv[np]))c++;np++}try{el.setSelectionRange(np,np)}catch(e){}}
+function simUpd(){const e=document.getElementById("simout");if(e)e.innerHTML=simOut()}
 function pmt(b,i,n){return i?b*i/(1-Math.pow(1+i,-n)):b/n}
 function addM(s,k){const[y,m,d]=s.split("-").map(Number);const t=new Date(y,m-1+k,1);const l=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();t.setDate(Math.min(d,l));return t}
 function solve(b,p,n){let lo=0,hi=1;if(p*n<=b)return 0;for(let j=0;j<80;j++){const m=(lo+hi)/2;pmt(b,m,n)<p?lo=m:hi=m}return (lo+hi)/2}
@@ -67,19 +71,19 @@ return `<h2>${S?"Editar mi crédito":"Registrar mi auto"}</h2><div class="card">
 <label>Nombre del auto</label><input id="f_name" value="${esc(e.name||"")}" placeholder="Nissan Magnite 2025">
 <label>Banco</label><select id="f_bank">${["Scotiabank","Citibanamex","BBVA","Santander","Banorte","HSBC","Otro"].map(b=>`<option ${e.bank===b?"selected":""}>${b}</option>`).join("")}</select>
 <label>Foto del auto</label><input type="file" accept="image/*" id="f_photo">${form.photo?`<img src="${form.photo}" style="width:100%;border-radius:12px;margin-top:8px" alt="Foto del auto">`:""}
-<label>Saldo restante ($)</label><input id="f_bal" type="number" inputmode="decimal" value="${e.balance?e.balance.toFixed(2):""}">
+<label>Saldo restante ($)</label><input id="f_bal" type="text" inputmode="decimal" oninput="fmtIn(this)" value="${e.balance?fmtN(e.balance.toFixed(2)):""}">
 <label>Interés anual (%)</label><input id="f_rate" type="number" inputmode="decimal" step="0.01" value="${e.rate||""}">
 <label>Número total de pagos (meses)</label><input id="f_total" type="number" inputmode="numeric" value="${e.total||""}">
 <label>Pagos ya realizados</label><input id="f_paid" type="number" inputmode="numeric" value="${e.paid??0}">
 <label>Fecha del próximo pago</label><input id="f_next" type="date" value="${e.next||""}">
-<label>¿Tu crédito tiene dos pagos distintos? Monto del primer pago ($)</label><input id="f_p1" type="number" inputmode="decimal" placeholder="Ej. 13000 (vacío si es un solo pago)" value="${e.n1>0?e.p1.toFixed(2):""}">
+<label>¿Tu crédito tiene dos pagos distintos? Monto del primer pago ($)</label><input id="f_p1" type="text" inputmode="decimal" oninput="fmtIn(this)" placeholder="Ej. 13,000 (vacío si es un solo pago)" value="${e.n1>0?fmtN(e.p1.toFixed(2)):""}">
 <label>¿Cuántos pagos son de ese monto?</label><input id="f_n1" type="number" inputmode="numeric" placeholder="1 si solo es el primero" value="${e.n1>0?e.n1:""}">
-<label>Mensualidad real, o el pago siguiente si tienes dos (opcional)</label><input id="f_pmt" type="number" inputmode="decimal" value="${e.fixed?e.pmt.toFixed(2):""}">
+<label>Mensualidad real, o el pago siguiente si tienes dos (opcional)</label><input id="f_pmt" type="text" inputmode="decimal" oninput="fmtIn(this)" value="${e.fixed?fmtN(e.pmt.toFixed(2)):""}">
 <button class="p" onclick="saveSetup()">Guardar</button>
 ${S?`<button class="lk" onclick="reset()">Eliminar este auto</button>`:DB.cars.length?`<button class="lk" onclick="cancelAdd()">Cancelar</button>`:""}</div>`}
-function saveSetup(){const v=id=>document.getElementById(id).value,bal=+v("f_bal"),rate=+v("f_rate"),total=+v("f_total"),paid=+v("f_paid"),next=v("f_next");
+function saveSetup(){const v=id=>document.getElementById(id).value,bal=parseN(v("f_bal")),rate=+v("f_rate"),total=+v("f_total"),paid=+v("f_paid"),next=v("f_next");
 if(!(bal>0)||!(total>0)||paid<0||paid>=total||!next||rate<0||v("f_rate")==="")return note("Completa saldo, interés, pagos y fecha. Los pagos realizados deben ser menos que el total.");
-const n=total-paid,fx=+v("f_pmt"),p1=+v("f_p1")||0,n1=p1>0?Math.min(Math.max(+v("f_n1")||1,1),n-1):0;if(p1>0&&!(fx>0))return note("Captura también el pago siguiente, el que viene después del primer pago.");const tot=n1>0?p1*n1+fx*(n-n1):fx*n,mi=fx>0?(n1>0?solveSeq(bal,k=>k<n1?p1:fx,n):solve(bal,fx,n)):rate/1200,p=fx>0?fx:pmt(bal,mi,n);if(fx>0&&tot<=bal)return note("Con esos pagos ("+money(tot)+" en total) no se alcanza a pagar el saldo de "+money(bal)+". Revisa el saldo, el plazo o la mensualidad.");
+const n=total-paid,fx=parseN(v("f_pmt")),p1=parseN(v("f_p1")),n1=p1>0?Math.min(Math.max(+v("f_n1")||1,1),n-1):0;if(p1>0&&!(fx>0))return note("Captura también el pago siguiente, el que viene después del primer pago.");const tot=n1>0?p1*n1+fx*(n-n1):fx*n,mi=fx>0?(n1>0?solveSeq(bal,k=>k<n1?p1:fx,n):solve(bal,fx,n)):rate/1200,p=fx>0?fx:pmt(bal,mi,n);if(fx>0&&tot<=bal)return note("Con esos pagos ("+money(tot)+" en total) no se alcanza a pagar el saldo de "+money(bal)+". Revisa el saldo, el plazo o la mensualidad.");
 const c={...(S||{}),id:(S&&S.id)||uid(),name:v("f_name")||"Mi auto",photo:form.photo||"",balance:bal,rate,total,paid,next,pmt:p,mi,fixed:fx>0,bank:v("f_bank"),p1:n1>0?p1:0,n1},k=DB.cars.findIndex(x=>x.id===c.id);if(k>=0)DB.cars[k]=c;else DB.cars.push(c);DB.cur=c.id;S=c;prev=null;form={};save();tab="home";render()}
 function reset(){ask("Se eliminará "+S.name+" con todo su historial. ¿Seguro?",()=>{DB.cars=DB.cars.filter(c=>c.id!==S.id);S=DB.cars[0]||null;DB.cur=S?S.id:null;form={};sim.amt="";save();tab=S?"home":"edit";render()},"Sí, eliminar")}
 function addCar(){prev=S;S=null;form={};tab="edit";render()}
@@ -111,7 +115,7 @@ return hd+`${S.fixed&&S.mi<=0&&S.rate>0?'<div class="card" style="border-color:v
 ${ap.length?`<div class="card" style="margin-top:12px"><b>Aportes a capital</b>${ap.slice().reverse().map(h=>`<div class="row"><span>${h.date}</span><span class="ok">${money(h.amt)}</span></div>`).join("")}</div>`:""}`}
 function cal(){const rows=sched(S.balance,pf(S),S.mi,S.next,S.paid,S.total-S.paid);
 return `<h2>Calendario de pagos</h2><div class="card">${rows.map((r,i)=>`<div class="row"><div><b>Pago ${r.n}</b><small>${dstr(r.date)}</small></div><div style="text-align:right"><b>${money(r.pay)}</b><small>Saldo: ${money(r.bal)}</small></div></div>`).join("")}</div><p class="mu">Los pagos ya confirmados salen de esta lista. Se calcula con interés sobre saldo; si tu banco suma IVA o seguros, captura tu mensualidad real en Ajustes.</p>`}
-function simv(){const a=+sim.amt,base=sched(S.balance,pf(S),S.mi,S.next,S.paid,S.total-S.paid),bt=base.reduce((x,r)=>x+r.int,0);let out="";
+function simOut(){const a=parseN(sim.amt),base=sched(S.balance,pf(S),S.mi,S.next,S.paid,S.total-S.paid),bt=base.reduce((x,r)=>x+r.int,0);let out="";
 if(a>0&&a<S.balance){const c=simCalc(a),it=c.rows.reduce((x,r)=>x+r.int,0),fin=c.rows[c.rows.length-1];
 out=`<div class="card"><div class="mu">Con este aporte, tu pago queda en</div><div class="big">${money(c.newp)}</div>
 <div class="row"><span>Pago actual</span><b>${money(base[0]?base[0].pay:0)}</b></div>
@@ -122,8 +126,9 @@ out=`<div class="card"><div class="mu">Con este aporte, tu pago queda en</div><d
 <div class="row"><span>Nuevo saldo</span><b>${money(c.nb)}</b></div>
 <button class="p" onclick="applyAp()">Registrar este aporte</button></div>`}
 else if(a>=S.balance&&a>0)out=`<p class="mu">El aporte no puede ser igual o mayor al saldo (${money(S.balance)}).</p>`;
-return `<h2>Simular aporte a capital</h2><div class="card"><label>Monto del aporte ($)</label><input id="s_amt" type="number" inputmode="decimal" value="${sim.amt}" oninput="sim.amt=this.value;clearTimeout(window.t);window.t=setTimeout(()=>render(true),500)" placeholder="10000">
-<label>¿Qué prefieres?</label><select onchange="sim.mode=this.value;render(true)"><option value="pago" ${sim.mode==="pago"?"selected":""}>Bajar mi mensualidad (mismo plazo)</option><option value="plazo" ${sim.mode==="plazo"?"selected":""}>Terminar antes (misma mensualidad)</option></select></div>${out}`}
+return out}
+function simv(){return `<h2>Simular aporte a capital</h2><div class="card"><label>Monto del aporte ($)</label><input id="s_amt" type="text" inputmode="decimal" value="${fmtN(sim.amt)}" oninput="fmtIn(this);sim.amt=parseN(this.value);simUpd()" placeholder="10,000">
+<label>¿Qué prefieres?</label><select onchange="sim.mode=this.value;simUpd()"><option value="pago" ${sim.mode==="pago"?"selected":""}>Bajar mi mensualidad (mismo plazo)</option><option value="plazo" ${sim.mode==="plazo"?"selected":""}>Terminar antes (misma mensualidad)</option></select></div><div id="simout">${simOut()}</div>`}
 function render(keep){const A=document.getElementById("app"),N=document.getElementById("nav");
 if(!S&&tab!=="edit")tab="edit";
 A.innerHTML=tab==="edit"?setup():tab==="cal"?cal():tab==="sim"?simv():tab==="more"?more():home();

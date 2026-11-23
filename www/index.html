@@ -51,30 +51,36 @@ const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+Stri
 function pmt(b,i,n){return i?b*i/(1-Math.pow(1+i,-n)):b/n}
 function addM(s,k){const[y,m,d]=s.split("-").map(Number);const t=new Date(y,m-1+k,1);const l=new Date(t.getFullYear(),t.getMonth()+1,0).getDate();t.setDate(Math.min(d,l));return t}
 function solve(b,p,n){let lo=0,hi=1;if(p*n<=b)return 0;for(let j=0;j<80;j++){const m=(lo+hi)/2;pmt(b,m,n)<p?lo=m:hi=m}return (lo+hi)/2}
+const pf=c=>k=>c.n1>0&&k<c.n1?c.p1:c.pmt;
+function solveSeq(b,f,n){let lo=0,hi=1;for(let j=0;j<80;j++){const m=(lo+hi)/2;let x=b;for(let k=0;k<n;k++)x=x*(1+m)-f(k);x>0?hi=m:lo=m}return (lo+hi)/2}
+function simLen(b,i,f){for(let k=0;k<600;k++){b=b*(1+i)-f(k);if(b<=0.005)return k+1}return 600}
 function nper(b,i,p){if(i===0)return Math.ceil(b/p-1e-9);if(p<=b*i)return 600;return Math.min(600,Math.ceil(-Math.log(1-b*i/p)/Math.log(1+i)-1e-9))}
-function sched(bal,p,i,start,paid,n){const r=[];let b=bal;for(let k=0;k<n;k++){const int=b*i,last=k===n-1,pay=last?b+int:p,cap=pay-int;b-=cap;r.push({n:paid+k+1,date:addM(start,k),pay,int,cap,bal:last?0:Math.max(b,0)})}return r}
-function snap(kind,amt){S.hist=S.hist||[];S.hist.push({kind,amt,date:iso(new Date()),s:{paid:S.paid,balance:S.balance,next:S.next,pmt:S.pmt,total:S.total}});if(S.hist.length>60)S.hist.shift()}
-function pay(){const r=sched(S.balance,S.pmt,S.mi,S.next,S.paid,S.total-S.paid)[0];if(!r)return;ask("¿Confirmas que ya pagaste "+money(r.pay)+"?",()=>{snap("pago",r.pay);S.balance=r.bal;S.paid++;S.next=iso(addM(S.next,1));save();render()},"Sí, ya pagué")}
+function sched(bal,p,i,start,paid,n){const r=[];let b=bal;for(let k=0;k<n;k++){const int=b*i,last=k===n-1,pay=last?b+int:(typeof p==="function"?p(k):p),cap=pay-int;b-=cap;r.push({n:paid+k+1,date:addM(start,k),pay,int,cap,bal:last?0:Math.max(b,0)})}return r}
+function snap(kind,amt){S.hist=S.hist||[];S.hist.push({kind,amt,date:iso(new Date()),s:{paid:S.paid,balance:S.balance,next:S.next,pmt:S.pmt,total:S.total,n1:S.n1||0,p1:S.p1||0}});if(S.hist.length>60)S.hist.shift()}
+function pay(){const r=sched(S.balance,pf(S),S.mi,S.next,S.paid,S.total-S.paid)[0];if(!r)return;ask("¿Confirmas que ya pagaste "+money(r.pay)+"?",()=>{snap("pago",r.pay);S.balance=r.bal;S.paid++;if(S.n1>0)S.n1--;S.next=iso(addM(S.next,1));save();render()},"Sí, ya pagué")}
 function undo(){const h=S.hist&&S.hist[S.hist.length-1];if(!h)return note("No hay movimientos para deshacer.");ask("¿Deshacer el último movimiento ("+h.kind+")?",()=>{S.hist.pop();Object.assign(S,h.s);save();render()},"Deshacer")}
-function applyAp(){const a=+sim.amt;if(!(a>0)||a>=S.balance)return note("Escribe un monto válido, menor al saldo.");const c=simCalc(a);ask("¿Registrar aporte a capital de "+money(a)+"?",()=>{snap("aporte",a);S.balance-=a;S.pmt=c.newp;S.total=S.paid+c.rows.length;sim.amt="";save();tab="home";render()},"Registrar aporte")}
-function simCalc(a){const nb=S.balance-a,i=S.mi,n=S.total-S.paid;let newp,m;if(sim.mode==="pago"){newp=pmt(nb,i,n);m=n}else{newp=S.pmt;m=nper(nb,i,newp)}return{newp,rows:sched(nb,newp,i,S.next,S.paid,m),nb}}
+function applyAp(){const a=+sim.amt;if(!(a>0)||a>=S.balance)return note("Escribe un monto válido, menor al saldo.");const c=simCalc(a);ask("¿Registrar aporte a capital de "+money(a)+"?",()=>{snap("aporte",a);S.balance-=a;if(sim.mode==="pago"){S.pmt=c.newp;S.n1=0;S.p1=0}S.total=S.paid+c.rows.length;sim.amt="";save();tab="home";render()},"Registrar aporte")}
+function simCalc(a){const nb=S.balance-a,i=S.mi,n=S.total-S.paid;let f,m;if(sim.mode==="pago"){const np=pmt(nb,i,n);f=()=>np;m=n}else{f=pf(S);m=simLen(nb,i,f)}const rows=sched(nb,f,i,S.next,S.paid,m);return{newp:rows[0]?rows[0].pay:0,rows,nb}}
 function photo(f,cb){if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const m=900,k=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*k;c.height=im.height*k;c.getContext("2d").drawImage(im,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.8))};im.src=r.result};r.readAsDataURL(f)}
 function setup(){const e=S||{};form.photo=form.photo||e.photo||"";
 return `<h2>${S?"Editar mi crédito":"Registrar mi auto"}</h2><div class="card">
 <label>Nombre del auto</label><input id="f_name" value="${esc(e.name||"")}" placeholder="Nissan Magnite 2025">
+<label>Banco</label><select id="f_bank">${["Scotiabank","Citibanamex","BBVA","Santander","Banorte","HSBC","Otro"].map(b=>`<option ${e.bank===b?"selected":""}>${b}</option>`).join("")}</select>
 <label>Foto del auto</label><input type="file" accept="image/*" id="f_photo">${form.photo?`<img src="${form.photo}" style="width:100%;border-radius:12px;margin-top:8px" alt="Foto del auto">`:""}
 <label>Saldo restante ($)</label><input id="f_bal" type="number" inputmode="decimal" value="${e.balance?e.balance.toFixed(2):""}">
 <label>Interés anual (%)</label><input id="f_rate" type="number" inputmode="decimal" step="0.01" value="${e.rate||""}">
 <label>Número total de pagos (meses)</label><input id="f_total" type="number" inputmode="numeric" value="${e.total||""}">
 <label>Pagos ya realizados</label><input id="f_paid" type="number" inputmode="numeric" value="${e.paid??0}">
 <label>Fecha del próximo pago</label><input id="f_next" type="date" value="${e.next||""}">
-<label>Mensualidad real (opcional, déjala vacía para calcularla)</label><input id="f_pmt" type="number" inputmode="decimal" value="${e.fixed?e.pmt.toFixed(2):""}">
+<label>¿Tu crédito tiene dos pagos distintos? Monto del primer pago ($)</label><input id="f_p1" type="number" inputmode="decimal" placeholder="Ej. 13000 (vacío si es un solo pago)" value="${e.n1>0?e.p1.toFixed(2):""}">
+<label>¿Cuántos pagos son de ese monto?</label><input id="f_n1" type="number" inputmode="numeric" placeholder="1 si solo es el primero" value="${e.n1>0?e.n1:""}">
+<label>Mensualidad real, o el pago siguiente si tienes dos (opcional)</label><input id="f_pmt" type="number" inputmode="decimal" value="${e.fixed?e.pmt.toFixed(2):""}">
 <button class="p" onclick="saveSetup()">Guardar</button>
 ${S?`<button class="lk" onclick="reset()">Eliminar este auto</button>`:DB.cars.length?`<button class="lk" onclick="cancelAdd()">Cancelar</button>`:""}</div>`}
 function saveSetup(){const v=id=>document.getElementById(id).value,bal=+v("f_bal"),rate=+v("f_rate"),total=+v("f_total"),paid=+v("f_paid"),next=v("f_next");
 if(!(bal>0)||!(total>0)||paid<0||paid>=total||!next||rate<0||v("f_rate")==="")return note("Completa saldo, interés, pagos y fecha. Los pagos realizados deben ser menos que el total.");
-const n=total-paid,fx=+v("f_pmt"),mi=fx>0?solve(bal,fx,n):rate/1200,p=fx>0?fx:pmt(bal,mi,n);if(fx>0&&fx*n<=bal)return note("Con esa mensualidad ("+money(fx)+" × "+n+" = "+money(fx*n)+") no se alcanza a pagar el saldo de "+money(bal)+". Revisa el saldo, el plazo o la mensualidad.");
-const c={...(S||{}),id:(S&&S.id)||uid(),name:v("f_name")||"Mi auto",photo:form.photo||"",balance:bal,rate,total,paid,next,pmt:p,mi,fixed:fx>0},k=DB.cars.findIndex(x=>x.id===c.id);if(k>=0)DB.cars[k]=c;else DB.cars.push(c);DB.cur=c.id;S=c;prev=null;form={};save();tab="home";render()}
+const n=total-paid,fx=+v("f_pmt"),p1=+v("f_p1")||0,n1=p1>0?Math.min(Math.max(+v("f_n1")||1,1),n-1):0;if(p1>0&&!(fx>0))return note("Captura también el pago siguiente, el que viene después del primer pago.");const tot=n1>0?p1*n1+fx*(n-n1):fx*n,mi=fx>0?(n1>0?solveSeq(bal,k=>k<n1?p1:fx,n):solve(bal,fx,n)):rate/1200,p=fx>0?fx:pmt(bal,mi,n);if(fx>0&&tot<=bal)return note("Con esos pagos ("+money(tot)+" en total) no se alcanza a pagar el saldo de "+money(bal)+". Revisa el saldo, el plazo o la mensualidad.");
+const c={...(S||{}),id:(S&&S.id)||uid(),name:v("f_name")||"Mi auto",photo:form.photo||"",balance:bal,rate,total,paid,next,pmt:p,mi,fixed:fx>0,bank:v("f_bank"),p1:n1>0?p1:0,n1},k=DB.cars.findIndex(x=>x.id===c.id);if(k>=0)DB.cars[k]=c;else DB.cars.push(c);DB.cur=c.id;S=c;prev=null;form={};save();tab="home";render()}
 function reset(){ask("Se eliminará "+S.name+" con todo su historial. ¿Seguro?",()=>{DB.cars=DB.cars.filter(c=>c.id!==S.id);S=DB.cars[0]||null;DB.cur=S?S.id:null;form={};sim.amt="";save();tab=S?"home":"edit";render()},"Sí, eliminar")}
 function addCar(){prev=S;S=null;form={};tab="edit";render()}
 function pick(id){DB.cur=id;S=DB.cars.find(c=>c.id===id);save();render()}
@@ -86,30 +92,30 @@ ask("Se reemplazarán los datos actuales por el respaldo ("+d.cars.length+" auto
 const LN=()=>window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.LocalNotifications;
 async function clearRem(L){const q=await L.getPending();if(q.notifications.length)await L.cancel({notifications:q.notifications.map(n=>({id:n.id}))})}
 async function schedRem(){const L=LN();if(!L)return false;try{let p=await L.checkPermissions();if(p.display!=="granted"){p=await L.requestPermissions();if(p.display!=="granted")return "perm"}await clearRem(L);const list=[],now=Date.now();
-DB.cars.forEach((c,ci)=>{sched(c.balance,c.pmt,c.mi,c.next,c.paid,c.total-c.paid).slice(0,12).forEach((r,k)=>{[[3,"Tu pago de "+c.name+" es en 3 días: "],[0,"Hoy toca pagar "+c.name+": "]].forEach((a,j)=>{const at=new Date(r.date.getFullYear(),r.date.getMonth(),r.date.getDate()-a[0],9,0,0);if(at.getTime()>now)list.push({id:ci*1000+k*2+j+1,title:"Pago de mi auto",body:a[1]+money(r.pay),schedule:{at}})})})});
+DB.cars.forEach((c,ci)=>{sched(c.balance,pf(c),c.mi,c.next,c.paid,c.total-c.paid).slice(0,12).forEach((r,k)=>{[[3,"Tu pago de "+c.name+" es en 3 días: "],[0,"Hoy toca pagar "+c.name+": "]].forEach((a,j)=>{const at=new Date(r.date.getFullYear(),r.date.getMonth(),r.date.getDate()-a[0],9,0,0);if(at.getTime()>now)list.push({id:ci*1000+k*2+j+1,title:"Pago de mi auto",body:a[1]+money(r.pay),schedule:{at}})})})});
 if(list.length)await L.schedule({notifications:list});return true}catch(e){return false}}
 async function toggleRem(){if(DB.rem){DB.rem=false;save();try{const L=LN();if(L)await clearRem(L)}catch(e){}note("Recordatorios desactivados.");return render()}
 if(!LN())return note("Los recordatorios funcionan en la app instalada (APK), no en el navegador.");const r=await schedRem();if(r===true){DB.rem=true;save();note("Recordatorios activados.")}else note(r==="perm"?"Permite las notificaciones de esta app en los ajustes de Android.":"No se pudieron activar los recordatorios.");render()}
 function more(){return `<h2>Más</h2><div class="card"><b>Recordatorios de pago</b><p class="mu" style="margin:6px 0 0">Aviso 3 días antes y el mismo día de cada pago, de todos tus autos. Funciona en la app instalada (APK).</p><button class="${DB.rem?"s":"p"}" style="width:100%;margin-top:12px" onclick="toggleRem()">${DB.rem?"Desactivar recordatorios":"Activar recordatorios"}</button></div>
 <div class="card"><b>Respaldo de tus datos</b><p class="mu" style="margin:6px 0 0">Toca Copiar respaldo y pégalo en tus notas o envíatelo. Para restaurar, pega el texto aquí y toca Restaurar.</p><textarea id="bk" rows="4" style="margin:12px 0" placeholder="Aquí aparece o pegas el respaldo"></textarea><button class="p" style="margin:0" onclick="doBk()">Copiar respaldo</button><button class="s" style="width:100%;margin-top:8px" onclick="doRs()">Restaurar desde el texto</button></div>`}
-function home(){const rows=sched(S.balance,S.pmt,S.mi,S.next,S.paid,S.total-S.paid),nx=rows[0],left=rows.length,pc=Math.round(S.paid/(S.paid+left)*100),
+function home(){const rows=sched(S.balance,pf(S),S.mi,S.next,S.paid,S.total-S.paid),nx=rows[0],left=rows.length,pc=Math.round(S.paid/(S.paid+left)*100),
 days=nx?Math.ceil((new Date(S.next+"T00:00")-new Date().setHours(0,0,0,0))/864e5):0,ti=rows.reduce((a,r)=>a+r.int,0),last=rows[rows.length-1];
 const ap=(S.hist||[]).filter(h=>h.kind==="aporte"),hd=`<div style="display:flex;gap:8px;margin-bottom:12px"><select onchange="pick(this.value)" style="flex:1">${DB.cars.map(c=>`<option value="${c.id}" ${c.id===S.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select><button class="s" onclick="addCar()">+ Auto</button></div>`;
 if(!nx)return hd+`<div class="card"><h2>¡Crédito liquidado!</h2><p class="mu">Ya no tienes pagos pendientes.</p></div>`;
-return hd+`${S.fixed&&S.mi<=0&&S.rate>0?'<div class="card" style="border-color:var(--ac)"><b>Revisa tus datos</b><p class="mu" style="margin:6px 0 0">Tu mensualidad por los pagos que faltan no alcanza a cubrir el saldo, así que los números no cuadran. Corrígelo en Ajustes.</p></div>':""}<div class="hero" style="${S.photo?`background-image:url(${S.photo})`:""}"><div class="t"><b>${esc(S.name)}</b><span class="pill">Pago ${nx.n} de ${S.paid+left}</span></div></div>
+return hd+`${S.fixed&&S.mi<=0&&S.rate>0?'<div class="card" style="border-color:var(--ac)"><b>Revisa tus datos</b><p class="mu" style="margin:6px 0 0">Tu mensualidad por los pagos que faltan no alcanza a cubrir el saldo, así que los números no cuadran. Corrígelo en Ajustes.</p></div>':""}<div class="hero" style="${S.photo?`background-image:url(${S.photo})`:""}"><div class="t"><b>${esc(S.name)}</b><small style="opacity:.85">${esc(S.bank||"")}</small><span class="pill">Pago ${nx.n} de ${S.paid+left}</span></div></div>
 <div class="card next"><div class="mu">Próximo pago</div><div class="big">${money(nx.pay)}</div><b>${dstr(nx.date)}</b><br><span class="pill">${days<0?"Vencido hace "+(-days)+" días":days===0?"Es hoy":"Faltan "+days+" días"}</span>
 <button class="p" onclick="pay()">Ya pagué este mes</button><button class="lk" onclick="undo()">Deshacer el último movimiento</button></div>
 <div class="card"><div class="mu">Avance del crédito</div><div class="bar"><i style="width:${pc}%"></i></div><div class="mu">${S.paid} de ${S.paid+left} pagos confirmados (${pc}%)</div></div>
 <div class="g"><div class="card"><span class="mu">Saldo del auto</span><b>${money(S.balance)}</b></div><div class="card"><span class="mu">Pagos restantes</span><b>${left} de ${S.paid+left}</b></div>
 <div class="card"><span class="mu">Intereses por pagar</span><b>${money(ti)}</b></div><div class="card"><span class="mu">Último pago</span><b>${dstr(last.date)}</b></div></div>
 ${ap.length?`<div class="card" style="margin-top:12px"><b>Aportes a capital</b>${ap.slice().reverse().map(h=>`<div class="row"><span>${h.date}</span><span class="ok">${money(h.amt)}</span></div>`).join("")}</div>`:""}`}
-function cal(){const rows=sched(S.balance,S.pmt,S.mi,S.next,S.paid,S.total-S.paid);
+function cal(){const rows=sched(S.balance,pf(S),S.mi,S.next,S.paid,S.total-S.paid);
 return `<h2>Calendario de pagos</h2><div class="card">${rows.map((r,i)=>`<div class="row"><div><b>Pago ${r.n}</b><small>${dstr(r.date)}</small></div><div style="text-align:right"><b>${money(r.pay)}</b><small>Saldo: ${money(r.bal)}</small></div></div>`).join("")}</div><p class="mu">Los pagos ya confirmados salen de esta lista. Se calcula con interés sobre saldo; si tu banco suma IVA o seguros, captura tu mensualidad real en Ajustes.</p>`}
-function simv(){const a=+sim.amt,base=sched(S.balance,S.pmt,S.mi,S.next,S.paid,S.total-S.paid),bt=base.reduce((x,r)=>x+r.int,0);let out="";
+function simv(){const a=+sim.amt,base=sched(S.balance,pf(S),S.mi,S.next,S.paid,S.total-S.paid),bt=base.reduce((x,r)=>x+r.int,0);let out="";
 if(a>0&&a<S.balance){const c=simCalc(a),it=c.rows.reduce((x,r)=>x+r.int,0),fin=c.rows[c.rows.length-1];
 out=`<div class="card"><div class="mu">Con este aporte, tu pago queda en</div><div class="big">${money(c.newp)}</div>
-<div class="row"><span>Pago actual</span><b>${money(S.pmt)}</b></div>
-<div class="row"><span>Bajas por mes</span><b class="ok">${money(Math.max(S.pmt-c.newp,0))}</b></div>
+<div class="row"><span>Pago actual</span><b>${money(base[0]?base[0].pay:0)}</b></div>
+<div class="row"><span>Bajas por mes</span><b class="ok">${money(Math.max((base[0]?base[0].pay:0)-c.newp,0))}</b></div>
 <div class="row"><span>Pagos restantes</span><b>${c.rows.length} <span class="mu">(antes ${base.length})</span></b></div>
 <div class="row"><span>Terminas de pagar</span><b>${dstr(fin.date)}</b></div>
 <div class="row"><span>Intereses que te ahorras</span><b class="ok">${money(bt-it)}</b></div>
